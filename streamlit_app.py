@@ -1,1 +1,119 @@
-streamlit_app.py
+"""
+Real Estate Investment Analyzer (Streamlit version)
+
+Run locally:   streamlit run streamlit_app.py
+Deploy free:   Streamlit Community Cloud (connect a GitHub repo)
+"""
+
+import streamlit as st
+import matplotlib.pyplot as plt
+
+# ---------------------------------------------------------------------------
+# Rating thresholds (ROI %). Adjust to match your original project.
+# ---------------------------------------------------------------------------
+EXCELLENT_ROI = 12.0
+MODERATE_ROI = 6.0
+YEARS = 10
+
+
+# ---------------------------------------------------------------------------
+# Calculation logic (same as the tkinter version)
+# ---------------------------------------------------------------------------
+def get_rating(roi, annual_profit):
+    if annual_profit <= 0:
+        return "High Risk"
+    if roi >= EXCELLENT_ROI:
+        return "Excellent Investment"
+    if roi >= MODERATE_ROI:
+        return "Moderate Deal"
+    return "High Risk"
+
+
+def analyze(rent, expenses, down_payment):
+    monthly_cash_flow = rent - expenses
+    annual_profit = monthly_cash_flow * 12
+    roi = (annual_profit / down_payment) * 100 if down_payment > 0 else 0.0
+    break_even_years = down_payment / annual_profit if annual_profit > 0 else None
+    return {
+        "monthly_cash_flow": monthly_cash_flow,
+        "annual_profit": annual_profit,
+        "roi": roi,
+        "break_even_years": break_even_years,
+        "rating": get_rating(roi, annual_profit),
+    }
+
+
+def make_graph(annual_profit, down_payment):
+    fig, ax = plt.subplots(figsize=(7, 4))
+    years = list(range(0, YEARS + 1))
+    ax.plot(years, [annual_profit * y for y in years], marker="o",
+            linewidth=2, label="Cumulative Profit")
+    ax.axhline(down_payment, color="red", linestyle="--",
+               label=f"Break-Even Line (${down_payment:,.0f})")
+
+    if annual_profit > 0:
+        be_year = down_payment / annual_profit
+        if be_year <= YEARS:
+            ax.plot(be_year, down_payment, "go", markersize=10,
+                    label=f"Break-Even: {be_year:.1f} yrs")
+
+    ax.set_title("10-Year Profit Growth")
+    ax.set_xlabel("Years")
+    ax.set_ylabel("Cumulative Profit ($)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+st.set_page_config(page_title="Real Estate Investment Analyzer", page_icon="🏠")
+
+st.title("🏠 Real Estate Investment Analyzer")
+st.write("Evaluate whether a rental property is a good investment. "
+         "Enter the deal details and see cash flow, ROI, break-even, "
+         "and a 10-year profit outlook.")
+
+with st.sidebar:
+    st.header("Deal Details")
+    price = st.number_input("Property Price ($)", min_value=0.0,
+                            value=400000.0, step=5000.0)
+    rent = st.number_input("Monthly Rent ($)", min_value=0.0,
+                           value=2800.0, step=50.0)
+    expenses = st.number_input("Monthly Expenses ($)", min_value=0.0,
+                               value=1900.0, step=50.0)
+    down = st.number_input("Down Payment ($)", min_value=0.0,
+                           value=80000.0, step=1000.0)
+    calculate = st.button("Calculate", type="primary", use_container_width=True)
+
+if calculate:
+    if down <= 0:
+        st.error("Down payment must be greater than zero.")
+    elif price > 0 and down > price:
+        st.error("Down payment cannot exceed the property price.")
+    else:
+        m = analyze(rent, expenses, down)
+
+        col1, col2 = st.columns(2)
+        col1.metric("Monthly Cash Flow", f"${m['monthly_cash_flow']:,.2f}")
+        col2.metric("Annual Profit", f"${m['annual_profit']:,.2f}")
+
+        col3, col4 = st.columns(2)
+        col3.metric("ROI", f"{m['roi']:.2f}%")
+        be = m["break_even_years"]
+        col4.metric("Break-Even Period",
+                    f"{be:.1f} years" if be is not None else "Never")
+
+        rating = m["rating"]
+        if rating == "Excellent Investment":
+            st.success(f"Investment Rating: {rating}")
+        elif rating == "Moderate Deal":
+            st.warning(f"Investment Rating: {rating}")
+        else:
+            st.error(f"Investment Rating: {rating}")
+
+        st.pyplot(make_graph(m["annual_profit"], down))
+else:
+    st.info("Enter your numbers in the sidebar and click **Calculate**.")
